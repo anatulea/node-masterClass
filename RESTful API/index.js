@@ -5,12 +5,39 @@
 
 // Dependencies
 const http = require('http');
+const https = require('https');
 const url = require('url');
 const StringDecoder = require('string_decoder').StringDecoder;
 const config = require('./config');
+const fs = require('fs');
 
-// Configure the server to respond to all requests with a string
-const server = http.createServer(function (req, res) {
+
+// Instantiate the HTTP server
+const httpServer = http.createServer(function (req, res) {
+    unifiedServer(req, res);
+});
+
+// Start the HTTP server
+httpServer.listen(config.httpPort, function () {
+    console.log(`The HTTP server is running on port ${config.httpPort}`);
+});
+
+// Instantiate the HTTPS server
+const httpsServerOptions = {
+    'key': fs.readFileSync('./https/key.pem'),
+    'cert': fs.readFileSync('./https/cert.pem')
+};
+const httpsServer = https.createServer(httpsServerOptions, function (req, res) {
+    unifiedServer(req, res);
+});
+
+// Start the HTTPS server
+httpsServer.listen(config.httpsPort, function () {
+    console.log(`The HTTPS server is running on port ${config.httpsPort}`);
+});
+
+// All the server logic for both the http and https server
+const unifiedServer = function (req, res) {
 
     // Parse the url
     const parsedUrl = url.parse(req.url, true);
@@ -31,14 +58,11 @@ const server = http.createServer(function (req, res) {
     // Get the payload,if any
     const decoder = new StringDecoder('utf-8');
     let buffer = '';
-
     req.on('data', function (data) {
         buffer += decoder.write(data);
     });
-
     req.on('end', function () {
         buffer += decoder.end();
-
 
         // Check the router for a matching path for a handler. If one is not found, use the notFound handler instead.
         const chosenHandler = typeof (router[trimmedPath]) !== 'undefined' ? router[trimmedPath] : handlers.notFound;
@@ -65,33 +89,32 @@ const server = http.createServer(function (req, res) {
             const payloadString = JSON.stringify(payload);
 
             // Return the response
-            res.setHeader('Content-Type', 'application/json')
+            res.setHeader('Content-Type', 'application/json');
             res.writeHead(statusCode);
             res.end(payloadString);
             console.log("Returning this response: ", statusCode, payloadString);
 
         });
+
     });
-});
-// Start the server
-server.listen(config.port, function () {
-    console.log(`The server is up and running on port ${config.port} in ${config.envName} mode.`);
-});
+};
 
-// define the request router
-let handlers = {};
+// Define all the handlers
+const handlers = {};
 
+// Sample handler
 handlers.sample = function (data, callback) {
     callback(406, {
         'name': 'sample handler'
-    })
-}
+    });
+};
 
+// Not found handler
 handlers.notFound = function (data, callback) {
-    callback(404)
-}
+    callback(404);
+};
 
-
-let router = {
+// Define the request router
+const router = {
     'sample': handlers.sample
-}
+};
