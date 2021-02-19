@@ -38,14 +38,58 @@ const server = http.createServer(function (req, res) {
     req.on('end', function () {
         buffer += decoder.end();
 
-        // Send the response
-        res.end('Hello World!\n');
 
-        // Log the request/response
-        console.log('Request received with this payload: ', buffer);
+        // Check the router for a matching path for a handler. If one is not found, use the notFound handler instead.
+        const chosenHandler = typeof (router[trimmedPath]) !== 'undefined' ? router[trimmedPath] : handlers.notFound;
+
+        // Construct the data object to send to the handler
+        const data = {
+            'trimmedPath': trimmedPath,
+            'queryStringObject': queryStringObject,
+            'method': method,
+            'headers': headers,
+            'payload': buffer
+        };
+
+        // Route the request to the handler specified in the router
+        chosenHandler(data, function (statusCode, payload) {
+
+            // Use the status code returned from the handler, or set the default status code to 200
+            statusCode = typeof (statusCode) == 'number' ? statusCode : 200;
+
+            // Use the payload returned from the handler, or set the default payload to an empty object
+            payload = typeof (payload) == 'object' ? payload : {};
+
+            // Convert the payload to a string
+            const payloadString = JSON.stringify(payload);
+
+            // Return the response
+            res.writeHead(statusCode);
+            res.end(payloadString);
+            console.log("Returning this response: ", statusCode, payloadString);
+
+        });
     });
 });
 // Start the server
 server.listen(3000, function () {
     console.log('The server is up and running now');
 });
+
+// define the request router
+let handlers = {};
+
+handlers.sample = function (data, callback) {
+    callback(406, {
+        'name': 'sample handler'
+    })
+}
+
+handlers.notFound = function (data, callback) {
+    callback(404)
+}
+
+
+let router = {
+    'sample': handlers.sample
+}
